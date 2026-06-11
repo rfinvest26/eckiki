@@ -344,7 +344,7 @@ const ModelPage: React.FC = () => {
 
   const handleOpenTelegram = () => {
     if (!model) return;
-    const botUsername = process.env.REACT_APP_ESCORT_BOT_USERNAME || 'onightoriginal_bot';
+    const botUsername = process.env.REACT_APP_ESCORT_BOT_USERNAME || 'onenightoriginal_bot';
     const handoff = buildTelegramHandoff({
       model,
       selectedServices,

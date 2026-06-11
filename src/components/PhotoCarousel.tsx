@@ -33,8 +33,8 @@ const PhotoCarousel: React.FC<PhotoCarouselProps> = ({ photos }) => {
       
       {photos.length > 1 && (
         <>
-          <button className="carousel-btn prev" onClick={prevPhoto}>&#10094;</button>
-          <button className="carousel-btn next" onClick={nextPhoto}>&#10095;</button>
+          <button type="button" className="carousel-btn prev" onClick={prevPhoto}>&#10094;</button>
+          <button type="button" className="carousel-btn next" onClick={nextPhoto}>&#10095;</button>
           
           <div className="carousel-indicators">
             {photos.map((_, idx) => (

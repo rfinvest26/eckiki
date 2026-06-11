@@ -14,7 +14,31 @@ interface Model {
   services: string[];
   photos: string[];
   code: string;
+  rating?: number;
+  orders_count?: number;
+  funds_amount?: number;
+  public_comments?: string[];
 }
+
+const COUNTRY_CITIES: Record<string, string[]> = {
+  ru: ['Москва', 'Санкт-Петербург', 'Казань', 'Сочи'],
+  ua: ['Киев', 'Львов', 'Одесса', 'Харьков'],
+  by: ['Минск', 'Гомель', 'Брест'],
+  kz: ['Алматы', 'Астана', 'Шымкент'],
+  uz: ['Ташкент', 'Самарканд', 'Бухара'],
+  kg: ['Бишкек', 'Ош'],
+  tj: ['Душанбе', 'Худжанд'],
+  am: ['Ереван', 'Гюмри'],
+  az: ['Баку', 'Гянджа'],
+  md: ['Кишинёв', 'Бельцы'],
+  ge: ['Тбилиси', 'Батуми'],
+};
+
+const getDisplayCity = (model: Model) => {
+  if (model.city && model.city !== 'auto') return model.city;
+  const country = localStorage.getItem('escortCountry') || 'ru';
+  return (COUNTRY_CITIES[country] || COUNTRY_CITIES.ru)[0];
+};
 
 const encodeOrderPayload = (payload: Record<string, unknown>) => {
   const json = JSON.stringify(payload);
@@ -43,9 +67,6 @@ const buildTelegramHandoff = (params: {
   orderTime: string;
   orderDuration: string;
   orderLocation: string;
-  promoCodeInput: string;
-  promoDiscount: number | null;
-  orderComment: string;
   price: number;
 }) => {
   const {
@@ -55,13 +76,11 @@ const buildTelegramHandoff = (params: {
     orderTime,
     orderDuration,
     orderLocation,
-    promoCodeInput,
-    promoDiscount,
-    orderComment,
     price,
   } = params;
   const refCode = localStorage.getItem('refCode') || 'NONE';
   const sourceUrl = window.location.href;
+  const displayCity = getDisplayCity(model);
   const payload = encodeOrderPayload({
     v: 2,
     modelCode: model.code,
@@ -70,7 +89,7 @@ const buildTelegramHandoff = (params: {
     refCode,
     modelName: model.name,
     age: model.age,
-    city: model.city,
+    city: displayCity,
     height: model.height,
     weight: model.weight,
     services: selectedServices,
@@ -79,9 +98,6 @@ const buildTelegramHandoff = (params: {
     duration: orderDuration,
     location: orderLocation,
     price: `$${price}`,
-    promoCode: promoDiscount ? promoCodeInput.trim().toUpperCase() : '',
-    promoDiscount: promoDiscount || 0,
-    comment: orderComment.trim(),
     sourceUrl,
     photo: model.photos?.[0] || '',
   });
@@ -90,15 +106,13 @@ const buildTelegramHandoff = (params: {
     `ESCORT_ORDER:${payload}`,
     '',
     `Модель: ${model.name} (${model.code})`,
-    `Город: ${model.city}`,
+    `Город: ${displayCity}`,
     `Дата: ${orderDate}`,
     `Время: ${orderTime}`,
     `Формат: ${orderLocation}`,
     `Длительность: ${orderDuration}`,
     `Услуги: ${selectedServices.join(', ')}`,
     `Стоимость: $${price}`,
-    promoDiscount ? `Промокод: ${promoCodeInput.trim().toUpperCase()} (${promoDiscount}%)` : '',
-    orderComment.trim() ? `Комментарий: ${orderComment.trim()}` : '',
   ].filter(Boolean).join('\n');
 
   return {
@@ -166,8 +180,8 @@ const PhotoCarousel: React.FC<{
       {/* Nav arrows */}
       {safePhotos.length > 1 && (
         <>
-          <button className="carousel-btn prev" onClick={prev} aria-label="Предыдущее фото">&#10094;</button>
-          <button className="carousel-btn next" onClick={next} aria-label="Следующее фото">&#10095;</button>
+          <button type="button" className="carousel-btn prev" onClick={prev} aria-label="Предыдущее фото">&#10094;</button>
+          <button type="button" className="carousel-btn next" onClick={next} aria-label="Следующее фото">&#10095;</button>
           <div className="carousel-indicators">
             {safePhotos.map((_, i) => (
               <div
@@ -180,21 +194,21 @@ const PhotoCarousel: React.FC<{
         </>
       )}
     </div>
-    {safePhotos.length > 1 && (
-      <div className="photo-strip">
-        {safePhotos.map((photo, i) => (
-          <button
-            key={`${photo}-${i}`}
-            type="button"
-            className={`photo-thumb ${i === idx ? 'active' : ''}`}
-            onClick={() => setIdx(i)}
-            aria-label={`Фото ${i + 1}`}
-          >
-            <img src={photo} alt={`${name} миниатюра ${i + 1}`} />
-          </button>
-        ))}
-      </div>
-    )}
+        {safePhotos.length > 1 && (
+          <div className="photo-strip">
+            {safePhotos.map((photo, i) => (
+              <button
+                key={`${photo}-${i}`}
+                type="button"
+                className={`photo-thumb ${i === idx ? 'active' : ''}`}
+                onClick={() => setIdx(i)}
+                aria-label={`Фото ${i + 1}`}
+              >
+                <img src={photo} alt={`${name} миниатюра ${i + 1}`} />
+              </button>
+            ))}
+          </div>
+        )}
     <div className="photo-strip-meta">
       <span>Фото модели</span>
       <strong>{safePhotos.length}</strong>
@@ -233,14 +247,9 @@ const ModelPage: React.FC = () => {
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [orderDuration, setOrderDuration] = useState('1 час');
   const [orderLocation, setOrderLocation] = useState('Апартаменты');
-  const [orderComment, setOrderComment] = useState('');
-
-  const [promoCodeInput, setPromoCodeInput] = useState('');
-  const [promoDiscount, setPromoDiscount] = useState<number | null>(null);
-  const [promoMsg, setPromoMsg] = useState<{type: 'success'|'error', text: string} | null>(null);
-  const [isCheckingPromo, setIsCheckingPromo] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'error'>('idle');
   const isAnySheetOpen = showOrderModal || showTelegramPrep;
+  const displayCity = model ? getDisplayCity(model) : '';
 
   useEffect(() => {
     if (!code) return;
@@ -283,6 +292,14 @@ const ModelPage: React.FC = () => {
     setShowOrderModal(true);
   };
 
+  const serviceChoices = model?.services?.filter(Boolean).slice(0, 6) || [];
+  const orderServices = selectedServices.length > 0
+    ? selectedServices
+    : serviceChoices.length === 0
+      ? ['Базовый заказ']
+      : [];
+  const canConfirmOrder = Boolean(model && orderDate && orderTime && orderServices.length > 0);
+
   const toggleService = (s: string) => {
     setSelectedServices(prev => 
       prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
@@ -297,40 +314,11 @@ const ModelPage: React.FC = () => {
     else if (orderDuration === 'Ночь') base = 700;
     
     if (orderLocation === 'Выезд') base += 50;
-    
-    if (promoDiscount) {
-      base = base - (base * promoDiscount / 100);
-    }
     return base;
   };
 
-  const handleCheckPromo = async () => {
-    if (!promoCodeInput.trim()) return;
-    setIsCheckingPromo(true);
-    setPromoMsg(null);
-    try {
-      const { data, error } = await supabase
-        .from('promo_codes')
-        .select('discount')
-        .eq('code', promoCodeInput.trim().toUpperCase())
-        .single();
-        
-      if (error || !data) {
-        setPromoMsg({ type: 'error', text: 'Промокод не найден или истёк' });
-        setPromoDiscount(null);
-      } else {
-        setPromoMsg({ type: 'success', text: `Применена скидка ${data.discount}%` });
-        setPromoDiscount(data.discount);
-      }
-    } catch {
-      setPromoMsg({ type: 'error', text: 'Ошибка проверки' });
-    } finally {
-      setIsCheckingPromo(false);
-    }
-  };
-
   const handleConfirmOrder = () => {
-    if (!model || !orderDate || !orderTime || selectedServices.length === 0) return;
+    if (!canConfirmOrder) return;
     setCopyState('idle');
     setShowTelegramPrep(true);
   };
@@ -340,14 +328,11 @@ const ModelPage: React.FC = () => {
     try {
       const handoff = buildTelegramHandoff({
         model,
-        selectedServices,
+        selectedServices: orderServices,
         orderDate,
         orderTime,
         orderDuration,
         orderLocation,
-        promoCodeInput,
-        promoDiscount,
-        orderComment,
         price: getCalculatedPrice(),
       });
       await navigator.clipboard.writeText(handoff.manualText);
@@ -362,14 +347,11 @@ const ModelPage: React.FC = () => {
     const botUsername = process.env.REACT_APP_ESCORT_BOT_USERNAME || 'onenightoriginal_bot';
     const handoff = buildTelegramHandoff({
       model,
-      selectedServices,
+      selectedServices: orderServices,
       orderDate,
       orderTime,
       orderDuration,
       orderLocation,
-      promoCodeInput,
-      promoDiscount,
-      orderComment,
       price: getCalculatedPrice(),
     });
     window.location.href = `https://t.me/${botUsername}?start=order2_${handoff.payload}`;
@@ -388,7 +370,7 @@ const ModelPage: React.FC = () => {
     return (
       <div className="error-screen">
         <p>{error || 'Анкета не найдена'}</p>
-        <button onClick={() => navigate('/')}>← На главную</button>
+        <button type="button" onClick={() => navigate('/')}>← На главную</button>
       </div>
     );
   }
@@ -396,7 +378,8 @@ const ModelPage: React.FC = () => {
   return (
     <div className="model-page">
       {/* Back Button */}
-      <button 
+      <button
+        type="button"
         onClick={() => navigate('/')}
         className="model-back-btn"
         aria-label="Назад"
@@ -408,54 +391,72 @@ const ModelPage: React.FC = () => {
       </button>
 
       {/* Edge-to-edge photo carousel 70vh */}
-      <PhotoCarousel
-        photos={model.photos || []}
-        name={model.name}
-        age={model.age}
-        city={model.city}
-      />
+      <div className="model-layout">
+        <PhotoCarousel
+          photos={model.photos || []}
+          name={model.name}
+          age={model.age}
+          city={displayCity}
+        />
 
-      {/* Details */}
-      <div className="model-details">
-        {/* Stats chips */}
-        <div className="stats-row">
-          <div className="stat-chip">{model.height} см</div>
-          <div className="stat-chip">{model.weight} кг</div>
-          <div className="stat-chip">{model.age} лет</div>
-          <div className="stat-chip">{model.code}</div>
-        </div>
-
-        {/* Description */}
-        {model.description && (
-          <p className="model-description">{model.description}</p>
-        )}
-
-        {/* Services */}
-        <ServicesList services={model.services} />
-
-        <div className="trust-panel">
-          <div>
-            <span>Response</span>
-            <strong>24/7</strong>
+        <div className="model-details">
+          <div className="model-header-card">
+            <div className="model-header-copy">
+              <div className="model-kicker">Private profile</div>
+              <h2>{model.name}, {model.age}</h2>
+              <p>Короткая карточка без лишних шагов: всё главное видно сразу, заказ оформляется в несколько касаний.</p>
+            </div>
+            <div className="model-code-badge">{model.code}</div>
           </div>
-          <div>
-            <span>Booking</span>
-            <strong>Telegram</strong>
+
+          <div className="stats-row">
+            <div className="stat-chip">{model.height} см</div>
+            <div className="stat-chip">{model.weight} кг</div>
+            <div className="stat-chip">{displayCity}</div>
+            <div className="stat-chip">★ {model.rating || 4.9}</div>
+            <div className="stat-chip">{model.orders_count || 24} заказов</div>
+            <div className="stat-chip">{model.funds_amount || 0} средств</div>
           </div>
-          <div>
-            <span>Profile</span>
-            <strong>Verified</strong>
+
+          {model.description && (
+            <p className="model-description">{model.description}</p>
+          )}
+
+          <ServicesList services={model.services} />
+
+          {model.public_comments && model.public_comments.length > 0 && (
+            <div className="model-comments">
+              <div className="services-title">Комментарии</div>
+              {model.public_comments.slice(0, 3).map((comment, index) => (
+                <p key={`${comment}-${index}`}>{comment}</p>
+              ))}
+            </div>
+          )}
+
+          <div className="trust-panel">
+            <div>
+              <span>Ответ</span>
+              <strong>24/7</strong>
+            </div>
+            <div>
+              <span>Форма</span>
+              <strong>2 шага</strong>
+            </div>
+            <div>
+              <span>Фокус</span>
+              <strong>Mobile first</strong>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Fixed CTA button */}
       <button
+        type="button"
         id="order-button"
         className="order-btn"
         onClick={handleOrderClick}
       >
-        Заказать
+        Заказать встречу
       </button>
 
       {/* Order Bottom Sheet */}
@@ -465,14 +466,26 @@ const ModelPage: React.FC = () => {
             <div className="bottom-sheet-handle"></div>
             
             <div className="bottom-sheet-body">
-              <h2 style={{ fontSize: '1.5rem', marginBottom: '8px', marginTop: '0' }}>Оформление заказа</h2>
-              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '24px' }}>
-                Выберите удобное время и формат для <b style={{ color: '#fff' }}>{model.name}</b>
-              </p>
+              <div className="sheet-intro">
+                <div className="sheet-kicker">Step 1</div>
+                <h2>Быстрый заказ</h2>
+                <p>Выберите только нужное: время, формат и услугу. Остальное уже собрано.</p>
+              </div>
+
+              <div className="order-mini-summary">
+                <div>
+                  <span>Модель</span>
+                  <strong>{model.name}</strong>
+                </div>
+                <div>
+                  <span>Стоимость</span>
+                  <strong>${getCalculatedPrice().toLocaleString('en-US')}</strong>
+                </div>
+              </div>
               
               <div className="form-group-row">
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Дата:</label>
+                <div className="form-group">
+                  <label>Дата</label>
                   <input 
                     type="date" 
                     value={orderDate} 
@@ -480,8 +493,8 @@ const ModelPage: React.FC = () => {
                     className="modal-input"
                   />
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Время:</label>
+                <div className="form-group">
+                  <label>Время</label>
                   <input 
                     type="time" 
                     value={orderTime} 
@@ -492,10 +505,11 @@ const ModelPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>Длительность:</label>
+                <label>Длительность</label>
                 <div className="chips-container">
                   {['1 час', '2 часа', 'Ночь'].map(dur => (
                     <button 
+                      type="button"
                       key={dur}
                       className={`chip-btn ${orderDuration === dur ? 'active' : ''}`}
                       onClick={() => setOrderDuration(dur)}
@@ -505,10 +519,11 @@ const ModelPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>Место (Формат):</label>
+                <label>Место</label>
                 <div className="chips-container">
                   {['Апартаменты', 'Выезд'].map(loc => (
                     <button 
+                      type="button"
                       key={loc}
                       className={`chip-btn ${orderLocation === loc ? 'active' : ''}`}
                       onClick={() => setOrderLocation(loc)}
@@ -519,100 +534,50 @@ const ModelPage: React.FC = () => {
 
               {model.services && model.services.length > 0 && (
                 <div className="form-group">
-                  <label>Услуги (можно несколько):</label>
-                  <div className="chips-container">
-                    {model.services.map(s => (
+                  <div className="field-head">
+                    <label>Услуги</label>
+                    <span>{selectedServices.length ? `${selectedServices.length} выбрано` : '1 или несколько'}</span>
+                  </div>
+                  <div className="chips-container service-scroll">
+                    {serviceChoices.map((s) => (
                       <button 
+                        type="button"
                         key={s}
                         className={`chip-btn ${selectedServices.includes(s) ? 'active' : ''}`}
                         onClick={() => toggleService(s)}
-                      >{s}</button>
+                      >
+                        {s}
+                      </button>
                     ))}
                   </div>
+                  <p className="sheet-note">Можно выбрать несколько услуг, но для быстрого заказа достаточно одной.</p>
                 </div>
               )}
 
-              <div className="form-group">
-                <label>Комментарий менеджеру:</label>
-                <textarea
-                  value={orderComment}
-                  onChange={(e) => setOrderComment(e.target.value.slice(0, 300))}
-                  className="modal-input modal-textarea"
-                  placeholder="Например: нужна встреча в центре, напишите заранее..."
-                />
-              </div>
-
-              <div className="promo-section-minimal">
-                <div className="promo-header">
-                  <h3>У вас есть промокод?</h3>
-                  <p>Введите его ниже, чтобы получить скидку на заказ</p>
+              {serviceChoices.length === 0 && (
+                <div className="form-group">
+                  <label>Услуги</label>
+                  <div className="order-service-empty">Базовый заказ без лишнего выбора</div>
                 </div>
-                
-                <div className="promo-input-group">
-                  <input 
-                    type="text" 
-                    value={promoCodeInput}
-                    onChange={(e) => setPromoCodeInput(e.target.value)}
-                    placeholder="Например, SALE20"
-                    className="promo-input-minimal"
-                    disabled={promoDiscount !== null}
-                  />
-                  {promoDiscount === null ? (
-                    <button 
-                      className="promo-apply-btn" 
-                      onClick={handleCheckPromo}
-                      disabled={!promoCodeInput.trim() || isCheckingPromo}
-                    >
-                      {isCheckingPromo ? 'Проверка...' : 'Применить промокод'}
-                    </button>
-                  ) : (
-                    <button 
-                      className="promo-applied-btn" 
-                      disabled
-                    >
-                      Скидка успешно применена
-                    </button>
-                  )}
-                </div>
-                
-                {promoMsg && (
-                  <div className={`promo-status-msg ${promoMsg.type}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {promoMsg.type === 'success' ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="15" y1="9" x2="9" y2="15"></line>
-                        <line x1="9" y1="9" x2="15" y2="15"></line>
-                      </svg>
-                    )}
-                    <span>{promoMsg.text}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="price-display" style={{ paddingBottom: '8px' }}>
-                <span>Итоговая стоимость:</span>
-                <strong>${getCalculatedPrice().toLocaleString('en-US')}</strong>
-              </div>
+              )}
 
               <div className="order-summary">
-                <div><span>Модель</span><b>{model.name}, {model.age}</b></div>
-                <div><span>Код</span><b>{model.code}</b></div>
-                <div><span>Формат</span><b>{orderLocation}, {orderDuration}</b></div>
-                <div><span>Услуги</span><b>{selectedServices.length ? selectedServices.join(', ') : 'Выберите услугу'}</b></div>
+                <div><span>Модель</span><b>{model.name}</b></div>
+                <div><span>Время</span><b>{orderDate || 'Дата'} · {orderTime || 'Время'}</b></div>
+                <div><span>Город</span><b>{displayCity}</b></div>
+                <div><span>Формат</span><b>{orderLocation}</b></div>
+                <div><span>Услуги</span><b>{orderServices.length ? orderServices.join(', ') : 'Выберите услугу'}</b></div>
+                <div><span>Стоимость</span><b>${getCalculatedPrice().toLocaleString('en-US')}</b></div>
               </div>
             </div>
 
             <div className="bottom-sheet-footer">
-              <button className="cancel-btn" onClick={() => setShowOrderModal(false)}>Назад</button>
+              <button type="button" className="cancel-btn" onClick={() => setShowOrderModal(false)}>Назад</button>
               <button
+                type="button"
                 className="confirm-btn"
                 onClick={handleConfirmOrder}
-                disabled={!orderDate || !orderTime || selectedServices.length === 0}
+                disabled={!canConfirmOrder}
               >
                 Подтвердить в Telegram
               </button>
@@ -626,23 +591,21 @@ const ModelPage: React.FC = () => {
           <div className="bottom-sheet-content telegram-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="bottom-sheet-handle"></div>
             <div className="bottom-sheet-body">
-              <h2 style={{ fontSize: '1.35rem', marginBottom: '8px', marginTop: '0' }}>Переход в Telegram</h2>
-              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
-                Скопируйте готовый текст. Если Telegram не отправит `/start` автоматически, просто вставьте этот текст в чат бота.
-              </p>
+              <div className="sheet-intro">
+                <div className="sheet-kicker">Step 2</div>
+                <h2>Переход в Telegram</h2>
+                <p>Откройте Telegram или скопируйте короткий текст заказа вручную.</p>
+              </div>
               <textarea
                 readOnly
                 className="modal-input modal-textarea handoff-textarea"
                 value={buildTelegramHandoff({
                   model,
-                  selectedServices,
+                  selectedServices: orderServices,
                   orderDate,
                   orderTime,
                   orderDuration,
                   orderLocation,
-                  promoCodeInput,
-                  promoDiscount,
-                  orderComment,
                   price: getCalculatedPrice(),
                 }).manualText}
               />
@@ -650,9 +613,9 @@ const ModelPage: React.FC = () => {
               {copyState === 'error' && <div className="handoff-status error">Не удалось скопировать автоматически</div>}
             </div>
             <div className="bottom-sheet-footer">
-              <button className="cancel-btn" onClick={() => setShowTelegramPrep(false)}>Назад</button>
-              <button className="promo-apply-btn" onClick={handleCopyOrderText}>Скопировать текст</button>
-              <button className="confirm-btn" onClick={handleOpenTelegram}>Открыть Telegram</button>
+              <button type="button" className="cancel-btn" onClick={() => setShowTelegramPrep(false)}>Назад</button>
+              <button type="button" className="promo-apply-btn" onClick={handleCopyOrderText}>Скопировать текст</button>
+              <button type="button" className="confirm-btn" onClick={handleOpenTelegram}>Открыть Telegram</button>
             </div>
           </div>
         </div>

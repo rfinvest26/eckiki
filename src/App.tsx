@@ -8,7 +8,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={
-          <div className="app-container">
+          <div className="app-container app-shell--landing">
             <Landing />
           </div>
         } />

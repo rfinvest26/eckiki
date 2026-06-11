@@ -46,6 +46,13 @@ body {
   overscroll-behavior-x: none;
 }
 
+body.order-sheet-open {
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
 img, svg, video, canvas {
   max-width: 100%;
 }
@@ -1301,22 +1308,35 @@ textarea.modal-input {
 }
 
 .bottom-sheet-overlay {
-  padding-top: max(8px, var(--safe-top));
-  overscroll-behavior: contain;
+  position: fixed;
+  inset: 0;
+  padding-top: var(--safe-top);
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .bottom-sheet-content {
   width: min(100%, var(--page-max));
-  max-height: calc(100dvh - max(8px, var(--safe-top)));
+  height: calc(100% - var(--safe-top) - 10px);
+  display: flex;
+  flex-direction: column;
   border-radius: 20px 20px 0 0;
   overflow: hidden;
+  background: #0f0f0f;
 }
 
 .bottom-sheet-body {
   padding: 0 16px 18px;
   min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .bottom-sheet-body h2 {
@@ -1327,6 +1347,8 @@ textarea.modal-input {
 .bottom-sheet-footer {
   padding: 12px 16px calc(12px + var(--safe-bottom));
   gap: 10px;
+  position: relative;
+  z-index: 2;
 }
 
 .bottom-sheet-footer button,
@@ -1389,6 +1411,14 @@ textarea.modal-input {
 .handoff-textarea {
   min-height: 210px;
   resize: none;
+}
+
+@supports (height: 100svh) {
+  .bottom-sheet-content,
+  .order-sheet {
+    height: min(820px, calc(100svh - max(8px, var(--safe-top))));
+    max-height: calc(100svh - max(8px, var(--safe-top)));
+  }
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -1463,6 +1493,28 @@ textarea.modal-input {
 
   .bottom-sheet-footer {
     display: grid;
+  }
+
+  .bottom-sheet-content,
+  .order-sheet,
+  .telegram-sheet {
+    width: 100%;
+    height: calc(100dvh - max(6px, var(--safe-top)));
+    max-height: calc(100dvh - max(6px, var(--safe-top)));
+    border-radius: 18px 18px 0 0;
+  }
+
+  @supports (height: 100svh) {
+    .bottom-sheet-content,
+    .order-sheet,
+    .telegram-sheet {
+      height: calc(100svh - max(6px, var(--safe-top)));
+      max-height: calc(100svh - max(6px, var(--safe-top)));
+    }
+  }
+
+  .bottom-sheet-body {
+    padding: 0 14px 16px;
   }
 
   .cancel-btn,

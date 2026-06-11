@@ -240,6 +240,7 @@ const ModelPage: React.FC = () => {
   const [promoMsg, setPromoMsg] = useState<{type: 'success'|'error', text: string} | null>(null);
   const [isCheckingPromo, setIsCheckingPromo] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'error'>('idle');
+  const isAnySheetOpen = showOrderModal || showTelegramPrep;
 
   useEffect(() => {
     if (!code) return;
@@ -263,6 +264,20 @@ const ModelPage: React.FC = () => {
     };
     fetchModel();
   }, [code]);
+
+  useEffect(() => {
+    if (!isAnySheetOpen) return;
+
+    const scrollY = window.scrollY;
+    document.body.style.top = `-${scrollY}px`;
+    document.body.classList.add('order-sheet-open');
+
+    return () => {
+      document.body.classList.remove('order-sheet-open');
+      document.body.style.top = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [isAnySheetOpen]);
 
   const handleOrderClick = () => {
     setShowOrderModal(true);
@@ -446,7 +461,7 @@ const ModelPage: React.FC = () => {
       {/* Order Bottom Sheet */}
       {showOrderModal && (
         <div className="bottom-sheet-overlay" onClick={() => setShowOrderModal(false)}>
-          <div className="bottom-sheet-content" onClick={(e) => e.stopPropagation()}>
+          <div className="bottom-sheet-content order-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="bottom-sheet-handle"></div>
             
             <div className="bottom-sheet-body">
@@ -608,7 +623,7 @@ const ModelPage: React.FC = () => {
 
       {showTelegramPrep && model && (
         <div className="bottom-sheet-overlay" onClick={() => setShowTelegramPrep(false)}>
-          <div className="bottom-sheet-content" onClick={(e) => e.stopPropagation()}>
+          <div className="bottom-sheet-content telegram-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="bottom-sheet-handle"></div>
             <div className="bottom-sheet-body">
               <h2 style={{ fontSize: '1.35rem', marginBottom: '8px', marginTop: '0' }}>Переход в Telegram</h2>
